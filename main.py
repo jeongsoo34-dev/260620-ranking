@@ -1,3 +1,4 @@
+import streamlit as set_page_config
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -68,5 +69,79 @@ def calculate_ranking(df):
     
     return ranking_df
 
-# 3. 메인 웹 UI 화면 구성
-st.title("🏆
+# 3. 메인 웹 UI 화면 구성 (에러가 발생했던 타이틀 부분 수정)
+st.title("🏆 실시간 축구 팀 랭킹 시스템")
+st.write("경기 결과를 바탕으로 승점, 골득실, 다득점을 계산하여 실시간 순위표를 업데이트합니다.")
+
+# 세 가지 기능을 탭으로 분리
+tab1, tab2, tab3 = st.tabs(["📊 실시간 랭킹", "➕ 경기 결과 입력", "📜 전체 경기 기록"])
+
+# --- [탭 1] 실시간 랭킹 확인 ---
+with tab1:
+    st.header("현재 팀 순위표")
+    ranking_res = calculate_ranking(st.session_state.match_data)
+    
+    if not ranking_res.empty:
+        st.dataframe(ranking_res, use_container_width=True)
+    else:
+        st.info("등록된 경기 데이터가 없습니다. 먼저 경기를 입력하거나 csv 파일을 확인해 주세요.")
+
+# --- [탭 2] 경기 결과 입력 (에러 방지 key 적용) ---
+with tab2:
+    st.header("새로운 경기 결과 등록")
+    
+    # 데이터 내의 모든 유니크한 팀 목록 추출
+    all_teams = sorted(list(set(st.session_state.match_data['home_team'].unique()) | set(st.session_state.match_data['away_team'].unique())))
+    
+    # 폼 내부 위젯들에 고유한 key를 지정하여 StreamlitDuplicateElementId 에러 방지
+    with st.form("match_input_form", clear_on_submit=True):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            match_date = st.date_input("경기 날짜", datetime.today(), key="form_date")
+        with col2:
+            home_team = st.selectbox("홈 팀 선택", all_teams, key="form_home_team")
+        with col3:
+            # 원정 팀의 기본 선택 인덱스 예외 처리 (팀이 2개 이상일 때 두 번째 팀 자동 선택)
+            default_away_idx = 1 if len(all_teams) > 1 else 0
+            away_team = st.selectbox("원정 팀 선택", all_teams, index=default_away_idx, key="form_away_team")
+            
+        col4, col5 = st.columns(2)
+        with col4:
+            home_score = st.number_input(f"[{home_team}] 득점", min_value=0, step=1, value=0, key="form_home_score")
+        with col5:
+            away_score = st.number_input(f"[{away_team}] 득점", min_value=0, step=1, value=0, key="form_away_score")
+            
+        submit_btn = st.form_submit_button("⚽ 경기 결과 저장 및 반영")
+        
+        # 버튼을 눌렀을 때의 데이터 처리 로직
+        if submit_btn:
+            if home_team == away_team:
+                st.error("⚠️ 홈 팀과 원정 팀은 서로 다른 팀이어야 합니다. 다시 선택해 주세요.")
+            else:
+                # 새 경기 데이터를 DataFrame 형태로 준비
+                new_match = pd.DataFrame([{
+                    'date': match_date.strftime('%Y-%m-%d'),
+                    'home_team': home_team,
+                    'away_team': away_team,
+                    'home_score': int(home_score),
+                    'away_score': int(away_score)
+                }])
+                
+                # 기존 데이터에 신규 데이터 병합(누적)
+                st.session_state.match_data = pd.concat([st.session_state.match_data, new_match], ignore_index=True)
+                st.success(f"성공적으로 반영되었습니다! ({home_team} {home_score} : {away_score} {away_team})")
+                
+                # 앱을 다시 실행(rerun)시켜 상단 랭킹 탭에 즉시 반영되도록 처리
+                st.rerun()
+
+# --- [탭 3] 전체 경기 기록 히스토리 확인 ---
+with tab3:
+    st.header("전체 경기 내역 목록")
+    st.write(f"현재까지 기록된 총 경기 수: **{len(st.session_state.match_data)}**개")
+    
+    # 최근 입력된 경기가 가장 위에 오도록 역순(iloc[::-1])으로 정렬하여 표시
+    if not st.session_state.match_data.empty:
+        st.dataframe(st.session_state.match_data.iloc[::-1], use_container_width=True)
+    else:
+        st.info("기록된 데이터가 없습니다.")
