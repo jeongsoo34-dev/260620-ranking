@@ -16,7 +16,6 @@ def load_initial_data():
         df['away_score'] = df['away_score'].astype(int)
         return df[['date', 'home_team', 'away_team', 'home_score', 'away_score']]
     except FileNotFoundError:
-        # 파일이 없을 경우를 대비한 빈 데이터프레임 구조 생성
         return pd.DataFrame(columns=['date', 'home_team', 'away_team', 'home_score', 'away_score'])
 
 # 세션 상태(Session State)를 통해 데이터 누적 유지
@@ -92,23 +91,24 @@ with tab2:
     # 데이터 내의 모든 유니크한 팀 목록 추출
     all_teams = sorted(list(set(st.session_state.match_data['home_team'].unique()) | set(st.session_state.match_data['away_team'].unique())))
     
-    # 폼 생성
+    # 중복 ID 및 렌더링 꼬임 방지를 위해 입력 레이아웃 재구성
     with st.form("match_input_form", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            match_date = st.date_input("경기 날짜", datetime.today(), key="form_date")
+            match_date = st.date_input("경기 날짜", datetime.today(), key="sb_date")
         with col2:
-            home_team = st.selectbox("홈 팀 선택", all_teams, key="form_home_team")
+            home_team = st.selectbox("홈 팀 선택", all_teams, key="sb_home_team")
         with col3:
             default_away_idx = 1 if len(all_teams) > 1 else 0
-            away_team = st.selectbox("원정 팀 선택", all_teams, index=default_away_idx, key="form_away_team")
+            away_team = st.selectbox("원정 팀 선택", all_teams, index=default_away_idx, key="sb_away_team")
             
         col4, col5 = st.columns(2)
         with col4:
-            home_score = st.number_input(f"[{home_team}] 득점", min_value=0, step=1, value=0, key="form_home_score")
+            # 중요: 라벨 텍스트 자체를 고정하여 선택 박스가 바뀔 때 입력 위젯이 파괴되는 현상 방지
+            home_score = st.number_input("홈 팀(Home) 득점", min_value=0, step=1, value=0, key="num_home_score")
         with col5:
-            away_score = st.number_input(f"[{away_team}] 득점", min_value=0, step=1, value=0, key="form_away_score")
+            away_score = st.number_input("원정 팀(Away) 득점", min_value=0, step=1, value=0, key="num_away_score")
             
         submit_btn = st.form_submit_button("⚽ 경기 결과 저장 및 반영")
         
